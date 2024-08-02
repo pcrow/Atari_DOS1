@@ -1,0 +1,302 @@
+; disasm --ltable=boot.labels bootsectors > boot.asm
+; DOS.SYS from 2 -- 65
+BSIO = $0763
+
+BFLG = $0700
+BRCNT = $0701
+BLDADR = $0702+1 word
+BINTADR = $0704+1 word
+BCONT = $0706 /i
+SABYTE = $0709
+DRVBYT = $070A
+SAFBFW = $070B
+SASA    =       $070C+1 word
+# SASA is the end of DOS; should be $262E, but it's 2680.  That's 82 bytes off.
+# Doesn't explain the 146 bytes extra, but that's probably the 82 bytes pushing it to the
+# next sector.
+DFSFLG = $070E # FF if DOS.SYS exists, 0 if it doesn't
+# What is $070F in DOS 1?  I think it's just an unused zero
+# Suggest moving DFLINK up a byte to save one byte
+# Could eliminate 3 more bytes by moving data fields past the first JMP to eliminate JPM XBCONT
+DFLINK = $0710+1 word
+
+# From DOS 2:
+#DFLINK = $070F+1 word
+#BLDISP = $0711
+#DFLADR = $0712+1 word # This is where the code starts in DOS 1.
+XBCONT = $0712 /i
+XBC1 = $0728
+BFAIL = $0746
+BGOOD = $074A
+XBRTN = $074C
+
+; A full disassembly of DOS 1.0:
+; Boot sector 1 is at $700
+; DOS.SYS follows immediately at $0780
+; Just cat the two together and disassemble at $0700
+
+
+# L074F: Advance ZBUFP by 0x7D bytes
+# Also store new ZBUFP in DBUF
+
+# L0763: A,Y is sector hi/low
+# If C is clear, read sector; else write sector
+# This code may be used outside of boot
+
+# ZBUFP is used to index indirect with Y to read sector chain bytes
+
+# It never cares about the number of bytes used in the last sector; all are loaded
+
+#
+# Boot
+# Load sector 1 at $700
+# Load the sector chain for DOS.SYS at $780 (starting sector is stored in sector 1)
+# RTS
+# System initializes DOS at $1300
+# RTS
+#
+
+#
+# Format DISK:
+# Set DOSEXIST to $00
+# Write sector 1 from $0700
+# Also write out sector 360 as appropriate
+#
+
+
+#
+# Writing DOS.SYS:
+#
+# Write out 8000 bytes to DOS.SYS starting at $0780
+# Save the first sector number at SEC_LO (maybe do this on all file creations?
+# Set DOSEXIST to $FF
+# Write sector 1 from $0700
+#
+
+; strings
+S_DOSSYS3 = $11E5+10 string
+# S_DOSSYS2 is copied into S_DOSSYS3 at L0857
+# It looks like those are just filename buffers that happen to have those values from writing out DOS.SYS
+
+; Looks like sector 360 at 1260
+#SECTOR360 = $1260+$F
+#SECTOR361 = $11E0
+FILDIR = $11E0+$FF ; saved data seesm to be sector 361 and sector 360
+#SECBUF = $1160 ; not sure, but looks likely
+;12E0 -- 12FF is zeros; is it used?
+
+
+DCBSEC = $030A+1 word
+DCBCMD = $0302
+
+; From leaked listings:
+JMPTBL = $1B
+RAMLO = $1A
+CIO	=	$E456 ; DOS 2 uses E459 instead
+DKHND	=	$E453
+SETVBV	=	$E45C
+SYSVBV	=	$E45F
+XITVBV	=	$E462
+MEMTOP	=	$2E5
+IRGEN	=	$D20E
+MEMLO	=	$2E7
+ICHIDZ	=	$20
+ICDNOZ	=	$21
+ICBALZ	=	$24
+ICBAHZ	=	$25
+ICIDNO	=	$2E
+MAXDEV	=	$21
+FMS	=	$700
+DOS	=	$1300
+IOCB	=	$340
+ICHID	=	$340
+ICDNO	=	$341
+ICCOM	=	$342
+ICSTA	=	$343
+ICBAL	=	$344
+ICBAH	=	$345
+ICBLL	=	$348
+ICBLH	=	$349
+ICAX1	=	$34A
+ICAX2	=	$34B
+
+#
+# Labels from Inside Atari DOS listing of DOS 2 where the code matches:
+#
+RETURN	=	$10FF/i
+ERRDNO  =       $10FB/i
+ERRNSB  =       $10F9/i
+ERRNSA  =       $10F7/i
+ERRSYS  =       $10F5/i
+ERFNMM  =       $10F3/i
+ERRFN   =       $10F1/i
+ERRPDL  =       $10EF/i
+ERFLOCK =       $10ED/i
+ERDVDC  =       $10EB/i
+ERDFULL =       $10E9/i
+ERFNF   =       $10E7/i
+ERRPOT  =       $10E5/i
+ENTSTK  =       $1121/d
+CURFCB  =       $1122
+SVDBYT  =       $1129
+ERRIO = $1111
+FRESBUF =       $105B/i
+GREAT   =       $1119/i
+ERREOF  =       $111D/i
+TSTDOS  =       $10CB/i
+FNAME   =       $113F+11-1 string
+DFN     =       $10D9+11-1 string
+TDFR    =       $10D8/i
+TDF1    =       $10CD/i
+TDFR    =       $10D8/i
+WD4     =       $10CA/i
+WD3     =       $10C4/i
+WRTNXS  =       $0D8A/i
+WD1     =       $10A2/i
+WD2     =       $10A4/i
+INCBA = $074F ;INC ZBUFP BY 125
+DELDOS  =	$1079
+DD1 = $107B
+WRTDOS = $106A
+SETDSO = $1090/i
+WD0 = $109A/i
+FSBR = $1069/i
+SECTBL = $1137
+WRTN1 = $0D9E/i
+WRU1 = $0D9B/i
+WRCSIO = $0E3B/i
+WRNERR = $0DC9/i
+RDNXTS = $0E52/i
+GETSECTOR = $0F2B/i
+
+DFMSDH = $077C+11 word
+
+DFMOPN = $07FD-1
+DFMCLS = $098F-1/i
+DFMGET = $093C-1/i
+DFMPUT = $090E-1/i
+DFMSTA = $097B-1/i
+DFMDDC = $09EB-1/i
+
+L0788 = $0788/i
+
+OPN1 = $0813/i
+LISTDIR = $0BBF/i
+SETUP = $0F89/i
+ENTSTK = $1121
+
+GET1 = $0949/i
+GDCHAR = $0BCB/i
+GET2 = $0959/i
+
+FNDCODE = $0C98/i
+SFDIR = $0D1B/i
+SFNF = $098C/i
+TSTLOCK = $0AF5/i
+
+CLDONE = $09A9/i
+CLUPDT = $09BD/i
+FGREAT = $1116/i
+FNSHFT = $09B1
+FNSHF1 = $09B3
+FNSHF2 = $09B5
+CDIRS = $1127/d
+CDIRD = $1126/d
+XFV = $0A1A
+DVDCER = $0A17-1
+DVDCVT = $0A09+13 dbyte
+XRENAME = $0A1D-1
+XDELETE = $0A76-1
+XLOCK = $0AC5-1
+XUNLOCK = $0ACC-1
+XPOINT = $0B03/i-1
+XNOTE = $0B40-1
+XFORMAT = $0B55
+
+TEMP2 = $112B
+XRN1 = $0A2B
+XRN1A = $0A36
+FNDCNX = $0CAE
+XRN1B = $0A50
+XRN2 = $0A55
+XRN3 = $0A5F
+WRTDIR = $0EA0
+DIRIO = $0EA1
+RDVGO = $0EC3
+WRTVTOC = $0EC6
+WRVVOC = $0EC6 # DOS 2 has both WRTVTOC and WRVVOC at the same address
+DSYSIO = $0ECD
+DSIOER = $0EE3
+DEAD = $0EEA
+
+CFSDIR = $0D2B
+TEMP4 = $112D
+XLCOM = $0AD1
+XLC1 = $0ADC
+TLF = $0B00
+PERR1 = $0B3D
+XP1 = $0B18
+XP2 = $0B2A
+
+LDENT1 = $0BF5
+LDCNT = $0BFB
+LDDONE = $0C18
+GDCRTN = $0BE8
+LDENT = $0BEB
+FDENT = $0C1B
+RDVTOC = $0EBA
+CVDX = $0C51
+FSCML = $0C62
+
+LD1 = $0C2F
+LD2 = $0C35
+CVDY = $0C61
+CVDIGIT = $0C6B
+TEMP3 = $112C
+TEMP1 = $112A
+CVD1 = $0C70
+STDIGIT = $0C87
+FD0A = $0CA4
+FNDERR = $0D01
+FD0 = $0CB2
+FD1 = $0CBD
+FD2 = $0CC4
+FD3 = $0CCF
+FD4 = $0CDF
+FD5 = $0CEB
+FD6 = $0CF7
+FDEND = $0CFD
+
+FDSCHAR = $0D04
+FDSC1 = $0D0F
+FDSC2 = $0D15
+
+DERR1 = $0FC1
+DRVTBL = $112E+7
+
+DSIO1 = $076F
+
+GS1 = $0F2D
+GSERR = $0F86
+GS2 = $0F52
+GS3 = $0F59
+GS4 = $0F6D
+FCBFNO = $1160
+FCBOTC = $1161
+FCBSPR = $1162 ; spare
+FCBSLT = $1163
+FCBFLG = $1164
+FCBMLN = $1165
+FCBDLN = $1166
+FCBBUF = $1167
+FCBCSN = $1168+1 word
+FCBLSN = $116A+1 word
+FCBSSN = $116C+1 word
+FCBCNT = $116E+1 word
+FCB1 = $1170+$F
+FCB2 = $1180+$F
+FCB3 = $1190+$F
+FCB4 = $11A0+$F
+FCB5 = $11B0+$F
+FCB6 = $11C0+$F
+FCB7 = $11D0+$F

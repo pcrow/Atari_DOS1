@@ -1,0 +1,44 @@
+I've always had a fascination with Atari DOS 1, released in 1979 with the
+Atari 810 disk drive for the Atari 800 computer.  It was replaced quickly
+with DOS 2 that fixed a number of bugs, and improved performance.  DOS 1
+used a lot more memory because it included the user utilities permanently
+loaded in memory, which was inefficient, but very convenient when
+programming in BASIC.  DOS 1 also only used a single boot sector, while DOS
+2 used three.
+
+The assembly source listings for DOS 2 were published in "Inside Atari DOS"
+by Bill Wilkinson, published by COMPUTE! Books.  I still have my copy.
+This has the listings only for DOS.SYS (including the boot sectors).  The
+source for DOS 1 was never published.  At some point the listings for the
+DUP portion of DOS 1 were leaked, and the PDF that I found is included
+here.  It's a grainy scan of a printout that often cuts off the last line
+or two from each page.
+
+To have good, working source files, I took a copy of DOS 1 and disassembled
+it.  The boot sector is at $700, immediately followed by DOS.SYS at $780.
+I split it into two files for the sources:
+  dos1dos.asm
+  dos1dup.asm
+
+The dos1dos.asm is the output from my disassembler after manually setting
+many labels based on the DOS 2 sources.  Many more could be corrected this
+way, and many comments could be added back in to get something very close
+to the original listings, but what I have now is a pretty good start.
+
+The dos1dup.asm is as close to a perfect match for the printout from 1979.
+I started with my disassembly and went through and adjusted it to match the
+listings exactly, with a few notes added by me in square brackets.  I've
+assembled these sources and verified that it matches my binary with the
+exception of data fields that change.
+
+One addtional file is:
+  dos1dos.labels
+This is an input file for my disassembler that sets label names and types.
+I've added a bunch of comments in this file.
+
+I would like to eventually get dos1dos.asm cleaned up with all the correct
+labels and comments from DOS 2 or rewritten to match as best as we can
+guess.  Unless, of course, someone comes up with original listings.
+
+I also intend to include modified sources to fix bugs and save memory.
+Contributions are welcome!
