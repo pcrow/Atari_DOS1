@@ -14,6 +14,9 @@ SASA    =       $070C+1 word
 # SASA is the end of DOS; should be $262E, but it's 2680.  That's 82 bytes off.
 # Doesn't explain the 146 bytes extra, but that's probably the 82 bytes pushing it to the
 # next sector.
+# Poke 1804,46 : . That results in a DOS.SYS file of 63 instead of 64 sectors
+# ?FRE(0) : . 28814 with standard DOS 1.
+# ?FRE(0) : . 28896 with modified (saving 82 bytes)
 DFSFLG = $070E # FF if DOS.SYS exists, 0 if it doesn't
 # What is $070F in DOS 1?  I think it's just an unused zero
 # Suggest moving DFLINK up a byte to save one byte
@@ -34,7 +37,6 @@ XBRTN = $074C
 ; Boot sector 1 is at $700
 ; DOS.SYS follows immediately at $0780
 ; Just cat the two together and disassemble at $0700
-
 
 # L074F: Advance ZBUFP by 0x7D bytes
 # Also store new ZBUFP in DBUF
@@ -74,14 +76,13 @@ XBRTN = $074C
 #
 
 ; strings
-S_DOSSYS3 = $11E5+10 string
+# S_DOSSYS3 = $11E5+10 string 
 # S_DOSSYS2 is copied into S_DOSSYS3 at L0857
 # It looks like those are just filename buffers that happen to have those values from writing out DOS.SYS
 
 ; Looks like sector 360 at 1260
 #SECTOR360 = $1260+$F
 #SECTOR361 = $11E0
-FILDIR = $11E0+$FF ; saved data seesm to be sector 361 and sector 360
 #SECBUF = $1160 ; not sure, but looks likely
 ;12E0 -- 12FF is zeros; is it used?
 
@@ -100,25 +101,14 @@ XITVBV	=	$E462
 MEMTOP	=	$2E5
 IRGEN	=	$D20E
 MEMLO	=	$2E7
-ICHIDZ	=	$20
-ICDNOZ	=	$21
-ICBALZ	=	$24
-ICBAHZ	=	$25
-ICIDNO	=	$2E
-MAXDEV	=	$21
+#ICHIDZ	=	$20
+#ICDNOZ	=	$21
+#ICBALZ	=	$24
+#ICBAHZ	=	$25
+#ICIDNO	=	$2E
+#MAXDEV	=	$21
 FMS	=	$700
 DOS	=	$1300
-IOCB	=	$340
-ICHID	=	$340
-ICDNO	=	$341
-ICCOM	=	$342
-ICSTA	=	$343
-ICBAL	=	$344
-ICBAH	=	$345
-ICBLL	=	$348
-ICBLH	=	$349
-ICAX1	=	$34A
-ICAX2	=	$34B
 
 #
 # Labels from Inside Atari DOS listing of DOS 2 where the code matches:
@@ -156,7 +146,8 @@ WD1     =       $10A2/i
 WD2     =       $10A4/i
 INCBA = $074F ;INC ZBUFP BY 125
 DELDOS  =	$1079
-DD1 = $107B
+# DD1 is also used in DUP, so use something different here
+DD1_ = $107B
 WRTDOS = $106A
 SETDSO = $1090/i
 WD0 = $109A/i
@@ -372,6 +363,12 @@ DHFNUM = $1125
 SFNUM = $1128
 SVDBYTE = $1129
 DBUFAL = $112E
-DFDCNT = $11E1
-DFDSSN = $11E3
-DFDPFN = $11E5
+# $11E0 is the start of two sector buffers
+# These are offsets when the first buffer is a directory entry
+DFDCNT = $11E1+1
+DFDSSN = $11E3+1
+DFDPFN = $11E5+10
+
+# FILDIR = $11E0+$FF ; saved data seesm to be sector 361 and sector 360
+FILDIR = $11E0
+
