@@ -24,7 +24,10 @@ dos1dup-clean.asm: dos1dup.asm
 
 dos1combined.asm: dos1dos-clean.asm dos1dup-clean.asm
 	cat dos1dos-clean.asm dos1dup-clean.asm > dos1combined.asm
-	sed -i $(xa -E -XMASM -o /dev/null dos1combined.asm |& grep 'Label already defined error' | sed -e 's/.*:line //' -e 's/:.*//' -e 's@.*@-e &s/^/;/@') dos1combined.asm
+	sed -i $$(xa -E -XMASM -o /dev/null dos1combined.asm |& grep 'Label already defined error' | sed -e 's/.*:line //' -e 's/:.*//' -e 's@.*@-e &s/^/;/@') dos1combined.asm
 
 dos1.bin: dos1combined.asm
 	xa -E -XMASM -P dos1combined.lst -o dos1.bin dos1combined.asm
+
+dos1modified.bin: dos1modified.asm
+	xa -E -XMASM -P dos1modified.lst -o dos1modified.bin dos1modified.asm
