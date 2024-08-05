@@ -1508,7 +1508,7 @@ CIOGET	LDA	#GETRCD+TEXT
 
 	LDA	#80
 	STA	ICBLL
-	LDA	#0	;[could use ASL A to save a byte here]
+	LDA	#0
 	STA	ICBLH
 	LDX	#0	;[could use TAX to save a byte here]
 	JSR	CIO	;READ RECORD FROM SCREEN EDITOR
