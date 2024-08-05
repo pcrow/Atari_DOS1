@@ -1,7 +1,3 @@
-CASINI	= $0002
-DOSVEC	= $000A
-POKMSK	= $0010
-BRKKEY	= $0011
 RAMLO	= $001A
 JMPTBL	= $001B
 ICDNOZ	= $0021
@@ -9,7 +5,6 @@ ZBUFP	= $0043
 ZDRVA	= $0045
 ZSBA	= $0047
 ERRNO	= $0049
-L008D	= $008D
 MEMTOP	= $02E5
 MEMLO	= $02E7
 DUNIT	= $0301
@@ -28,31 +23,61 @@ ICAX1	= $034A
 ICAX3	= $034C
 ICAX4	= $034D
 ICAX5	= $034E
-L04A0	= $04A0
-DOS	= $1300
-L2011	= $2011
-L4C11	= $4C11
-L8C0E	= $8C0E
-LA511	= $A511
+FMSORG	= $0700
+;DOS	= $1300  ; set dynamically
 IRGEN	= $D20E
 DKHND	= $E453
 CIO	= $E456
 SETVBV	= $E45C
 SYSVBV	= $E45F
 XITVBV	= $E462
-	*= $0700
-BFLG	.byte	$00
-BRCNT	.byte	$01
-BLDADR	.word	BFLG
-BINTADR	.word	DOS
-BCONT	JMP	XBCONT
-SABYTE	.byte	$03
-DRVBYT	.byte	$0F
-SAFBFW	.byte	$00
-SASA	.word	$2680
+
+LMASK	= 3	;LINK MASK
+
+;
+; DCBCMD VALUE EQUATES
+;
+DCBCRS	=	"R"	;Read sector     ($52)
+DCBCWS	=	"P"	;Put sector      ($50)
+DCBCST	=	"S"	;Status request  ($53)
+DCBCFD	=	"!"	;FORMAT DISKETTE ($21)
+;
+; DCBSTA VALUE EQUATES
+;
+DCBSOK	=	$01	;STATUS NORMAL
+DCBDNR	=	$81	;DEVICE NOT READY
+DCBCNR	=	$82	;CONTROLLER NOT READY
+DCBDER	=	$83	;DATA ERROR
+DCBIVC	=	$84	;INVALID COMMAND
+DCBWPR	=	$87	; WRITE PROTECT
+
+	;.PAGE	"BOOT RECORD"
+	*= FMSORG
+;
+; THE FOLLOWING BYTES ARE STORED
+; ON DISK SECTOR 0 They COMPRISE
+; THE BOOT LOAD RECORD
+;
+BFLG	.byte	$00	;BOOT FLAG UNUSED=0
+BRCNT	.byte	$01	;NO CONSECTIVE BOOT RECRODS TO READ
+BLDADR	.word	FMSORG	;BOOT LOAD ADDR
+BINTADR	.word	DOS	;INIT ADDR
+BCONT	JMP	XBCONT	;BOOT READ CONT PT
+;
+; THE FOLLOWING BYTES ARE SET BY
+; THE CONSOLE PROCESSOR. THEY ARE
+; ACTED UPON DURING FMS INIT ONLY.
+; THEY ARE PART OF THE BOOT RECORD
+; THUS DEFINING THE DEFAULT
+;INITIALIZATION PARMS
+;
+SABYTE	.byte	3	;MAX # CONCURRENT OPEN FILES
+DRVBYT	.byte	$0F	;DRIVE BITS
+SAFBFW	.byte	$00	;STORAGE ALLOCATION DIR SW
+SASA	.word	ENDPRG	;STORAGE ALLOCATION START ADDR
 DFSFLG	.byte	$FF
 	.byte	$00
-DFLINK	.word	CASINI
+DFLINK	.word	$0002	;DOS FILE START SECTOR NUMBER
 XBCONT	LDA	DFSFLG
 	BEQ	BFAIL
 	LDA	#$07
@@ -70,7 +95,7 @@ XBC1	CLC
 	BMI	BGOOD
 	LDY	#$7D
 	LDA	(ZBUFP),Y
-	AND	#$03
+	AND	#LMASK	;MASK TO LINK BITS
 	PHA
 	INY
 	LDA	(ZBUFP),Y
@@ -78,27 +103,27 @@ XBC1	CLC
 	JSR	INCBA
 	PLA
 	JMP	XBC1
-BFAIL	LDA	#$C0
-	BNE	XBRTN
-BGOOD	LDA	#$00
+BFAIL	LDA	#$C0	;SET FOR CARRY SET
+	BNE	XBRTN	;ANY P,Y = $80
+BGOOD	LDA	#$00	;SET FOR CARRY CLEAR
 XBRTN	ASL
 	TAY
 	RTS
 INCBA	CLC
-	LDA	ZBUFP
-	ADC	#$7D
+	LDA	ZBUFP	;INC BUFFER PTR
+	ADC	#$7D	;BY DATA LINK (125)
 	STA	DBUFLO
 	STA	ZBUFP
 	LDA	ZBUFP+1
-	ADC	#$00
+	ADC	#0
 	STA	DBUFHI
 	STA	ZBUFP+1
 	RTS
 BSIO	STA	DCBSEC+1
 	STY	DCBSEC
-	LDA	#$52
+	LDA	#DCBCRS
 	BCC	DSIO1
-	LDA	#$57
+	LDA	#"W"
 DSIO1	STA	DCBCMD
 L0772	JSR	DKHND
 	LDX	CURFCB
@@ -146,7 +171,7 @@ L07C4	STA	FCBFNO,Y
 	LDY	#$00
 ADI1	LDA	HATABS,Y
 	BEQ	ADI2
-	CMP	#$44
+	CMP	#"D"
 	BEQ	ADI2
 	INY
 	INY
@@ -154,11 +179,11 @@ ADI1	LDA	HATABS,Y
 	CPY	#$1E
 	BNE	ADI1
 	BRK
-ADI2	LDA	#$44
+ADI2	LDA	#"D"
 	STA	HATABS,Y
-	LDA	#$7C
+	LDA	#DFMSDH&255
 	STA	HATABS+1,Y
-	LDA	#$07
+	LDA	#DFMSDH/256
 	STA	HATABS+2,Y
 	LDA	L1157
 	LDY	SABYTE
@@ -179,7 +204,7 @@ OPN1	JSR	SFDIR
 	BCC	DHFOX2
 	LDA	FCBOTC,X
 	EOR	#$08
-	BNE	OPNER1
+0	BNE	OPNER1
 	LDA	DHOLES
 	BMI	OPNER2
 	STA	CDIRS
@@ -191,20 +216,20 @@ OPN1	JSR	SFDIR
 	JSR	RDVTOC
 OPN1A	JSR	GETSECTOR
 	LDY	CDIRD
-	STA	DFDSSN+1,Y
+	STA	FILDIR+DFDSSN+1,Y
 	LDA	FCBLSN,X
-	STA	DFDSSN,Y
-	STA	DFDCNT,Y
-	LDA	#$40
-	STA	FILDIR,Y
-	LDA	#$00
-	STA	DFDCNT,Y
-	LDX	#$00
-OPN2	LDA	FNAME,X
-	CMP	#$3F
+	STA	FILDIR+DFDSSN,Y
+	STA	FILDIR+DFDCNT,Y
+	LDA	#DFDINU
+	STA	FILDIR+DFDFL1,Y
+	LDA	#0
+	STA	FILDIR+DFDCNT,Y
+	LDX	#0
+OPN2	LDA	FNAME,X	;MOVE FILE NAME
+	CMP	#"?"	;IF WILD CARD
 	BNE	OPN2A
 	LDA	#$20
-OPN2A	STA	DFDPFN,Y
+OPN2A	STA	FILDIR+DFDPFN,Y
 	INY
 	INX
 	CPX	#$0B
@@ -222,9 +247,9 @@ OPNER1	JSR	ERFNF
 OPNER2	JSR	ERDFULL
 DHFOX2	JSR	SETFCB
 	LDY	CDIRD
-	LDA	DFDSSN,Y
+	LDA	FILDIR+DFDSSN,Y
 	STA	FCBLSN,X
-	LDA	DFDSSN+1,Y
+	LDA	FILDIR+DFDSSN+1,Y
 	STA	FCBLSN+1,X
 	JSR	RDNS1
 	LDA	FCBOTC,X
@@ -241,9 +266,9 @@ DHFOX2	JSR	SETFCB
 	AND	#$01
 	BEQ	L08E1
 	LDY	CDIRD
-	LDA	DFDCNT+1,Y
+	LDA	FILDIR+DFDCNT+1,Y
 	STA	FCBCNT+1,X
-	LDA	DFDCNT,Y
+	LDA	FILDIR+DFDCNT,Y
 	STA	FCBCNT,X
 	BNE	L08D1
 	DEC	FCBCNT+1,X
@@ -353,9 +378,9 @@ RRDIR	JSR	FNSHFT
 	JSR	RDDIR
 	LDY	CDIRD
 	LDA	FCBCNT+1,X
-	STA	DFDCNT+1,Y
+	STA	FILDIR+DFDCNT+1,Y
 	LDA	FCBCNT,X
-	STA	DFDCNT,Y
+	STA	FILDIR+DFDCNT,Y
 	JSR	WRTDIR
 	JMP	WRTVTOC
 DFMDDC	JSR	SETUP
@@ -397,18 +422,18 @@ XRN1A	LDY	TEMP2
 	JSR	TSTDOS
 	BNE	XRN1B
 	LDY	CDIRD
-	LDA	DFDSSN+1,Y
+	LDA	FILDIR+DFDSSN+1,Y
 	PHA
-	LDA	DFDSSN,Y
+	LDA	FILDIR+DFDSSN,Y
 	TAY
 	PLA
 	JSR	SETDSO
 XRN1B	LDX	#$00
 	LDY	CDIRD
-XRN2	LDA	FNAME,X
-	CMP	#$3F
-	BEQ	XRN3
-	STA	DFDPFN,Y
+XRN2	LDA	FNAME,X	;MOVE FILE NAME
+	CMP	#"?"	;FROM FNAME TO DIR ENT
+	BEQ	XRN3	;BUT DON'T CHANGE WILD CARD
+	STA	FILDIR+DFDPFN,Y
 XRN3	INY
 	INX
 	CPX	#$0B
@@ -421,16 +446,16 @@ XRN3	INY
 	JMP	FGREAT
 XDELETE	JSR	FNDCODE
 	JSR	SFDIR
-	BCC	L0A81
+	BCC	XDEL0
 	JMP	ERFNF
-L0A81	JSR	RDVTOC
-L0A84	LDY	CDIRD
+XDEL0	JSR	RDVTOC
+XDEL1	LDY	CDIRD
 	JSR	TSTLOCK
-	LDA	#$80
+	LDA	#DFDEDE
 	STA	FILDIR,Y
-	LDA	DFDSSN,Y
+	LDA	FILDIR+DFDSSN,Y
 	STA	FCBLSN,X
-	LDA	DFDSSN+1,Y
+	LDA	FILDIR+DFDSSN+1,Y
 	STA	FCBLSN+1,X
 	JSR	SETFCB
 	JSR	RDNS1
@@ -441,7 +466,7 @@ XDEL2A	JSR	FRESECT
 	JMP	XDEL2
 XDEL4	JSR	WRTDIR
 	JSR	CFSDIR
-	BCC	L0A84
+	BCC	XDEL1
 	JSR	WRTVTOC
 	JSR	TSTDOS
 	BNE	XDELY
@@ -504,7 +529,7 @@ XFORMAT	LDA	ZDRVA+1
 	STA	DBUFHI
 	LDA	ZDRVA
 	STA	DBUFLO
-	LDA	#$21
+	LDA	#DCBCFD
 	JSR	DSIO1
 	LDA	#$00
 	TAY
@@ -600,13 +625,13 @@ FDENT	LDY	#$00
 	LDA	FILDIR,X
 	AND	#$20
 	BEQ	LD1
-	LDA	#$2A
+	LDA	#"*"	;CHANGE TO AST
 	STA	(ZSBA),Y
 LD1	INY
-	LDA	#$20
+	LDA	#$20	;FOLLOWED BY A BLANK
 	STA	(ZSBA),Y
 	INY
-LD2	LDA	DFDPFN,X
+LD2	LDA	FILDIR+DFDPFN,X
 	STA	(ZSBA),Y
 	INX
 	INY
@@ -617,8 +642,8 @@ LD2	LDA	DFDPFN,X
 	INY
 	STY	TEMP4
 	LDX	CDIRD
-	LDY	DFDCNT,X
-	LDA	DFDCNT+1
+	LDY	FILDIR+DFDCNT,X
+	LDA	FILDIR+DFDCNT+1
 CVDX	LDX	#$64
 	JSR	CVDIGIT
 	LDX	#$0A
@@ -659,7 +684,7 @@ FNDCODE	LDA	ICBAL,X
 FD0A	LDA	(ZBUFP),Y
 	DEY
 	BMI	FNDERR
-	CMP	#$3A
+	CMP	#":"
 	BNE	FD0A
 	INY
 FNDCNX	LDX	#$0B
@@ -671,26 +696,26 @@ FD0	STA	FNAME,X
 	STX	TEMP1
 FD1	INY
 	LDA	(ZBUFP),Y
-	CMP	#$2A
+	CMP	#"*"
 	BNE	FD3
-FD2	LDA	#$3F
+FD2	LDA	#"?"
 	JSR	FDSCHAR
 	BCC	FD2
 	BPL	FD1
 	BMI	FDEND
-FD3	CMP	#$2E
+FD3	CMP	#"."
 	BNE	FD4
 	BIT	TEMP1
 	BMI	FDEND
 	LDX	#$08
 	ROR	TEMP1
 	BCC	FD1
-FD4	CMP	#$3F
+FD4	CMP	#"?"
 	BEQ	FD6
-	CMP	#$41
-	BCC	FD5
-	CMP	#$5B
-	BCC	FD6
+	CMP	#"A"	;IS CHAR ALPHA
+	BCC	FD5	;BR NOT ALPHA
+	CMP	#$5B	;TEXT HI ALPHA
+	BCC	FD6	;BR IF NOT ALPHA
 FD5	CPX	#$00
 	BEQ	FNDERR
 	CMP	#$30
@@ -738,12 +763,12 @@ SFD2	STA	CDIRD
 	LDA	FILDIR,Y
 	BEQ	SFDSH
 	BMI	SFDSH
-	LDX	#$00
-SFD3	LDA	FNAME,X
-	CMP	#$3F
-	BEQ	SFD4
-	CMP	DFDPFN,Y
-	BNE	CFSDIR
+	LDX	#0	;TEST MATCH ON 12 CHARS
+SFD3	LDA	FNAME,X	;FILE NAME CHAR
+	CMP	#"?"	;IS FNC WILD CARD
+	BEQ	SFD4	;THEN IT MATCHES
+	CMP	FILDIR+DFDPFN,Y	;ELSE IT MUST MATCH FO
+	BNE	CFSDIR	;IF NOT MATCH THEN TRY NEXT
 SFD4	INX
 	INY
 	CPX	#$0B
@@ -876,18 +901,18 @@ RDNS2	AND	#$7F
 	RTS
 RDIOER	JSR	ERRIO
 RDFNMM	LDA	ICCOM,X
-	CMP	#$21
-	BEQ	RDDELE
-	JSR	ERFNMM
+	CMP	#$21	;WAS THIS DELETE
+	BEQ	RDDELE	;BR IF DELETE
+	JSR	ERFNMM	;BR NOT DELETE
 RDDELE	SEC
 	RTS
 RDDIR	CLC
 	BCC	DIRIO
 WRTDIR	SEC
 DIRIO	PHP
-	LDA	#$11
+	LDA	#FILDIR/256
 	STA	DBUFHI
-	LDA	#$E0
+	LDA	#FILDIR&255
 	STA	DBUFLO
 	CLC
 	LDA	CDIRS
@@ -1071,9 +1096,9 @@ L1001	SEC
 	RTS
 DSIO	STA	DCBSEC+1
 	STY	DCBSEC
-	LDA	#$52
+	LDA	#DCBCRS
 	BCC	L101C
-	LDA	#$57
+	LDA	#"W"
 L101C	STA	DCBCMD
 	LDA	ZSBA
 	STA	DBUFLO
@@ -1119,9 +1144,9 @@ WRTDOS	LDY	FCBCSN,X
 	JMP	GREAT
 DELDOS	LDA	#$00
 DD1_	STA	DFSFLG
-	LDA	#$07
+	LDA	#FMSORG/256
 	STA	DBUFHI
-	LDA	#$00
+	LDA	#FMSORG&255
 	STA	DBUFLO
 	LDA	#$00
 	TAY
@@ -1145,24 +1170,24 @@ WD2	LDA	(ZBUFP),Y
 	TYA
 	STA	FCBDLN,X
 	JSR	INCBA
-	CMP	SASA+1
+	CMP	#ENDCODE/256
 	BCC	WD3
 	BNE	WD4
 	LDA	ZBUFP
-	CMP	SASA
+	CMP	#ENDCODE&255
 	BCC	WD3
 	BNE	WD4
 WD3	JSR	WRTNXS
 	JMP	WD1
 WD4	RTS
-TSTDOS	LDY	#$0B
-TDF1	LDA	FNAME-1,Y
-	CMP	DFN-1,Y
-	BNE	DFN-1
+TSTDOS	LDY	#11	;LOOK AT 12 CHARS
+TDF1	LDA	FNAME-1,Y	;TEST DECODE FILENAME CHAR
+	CMP	DFN-1,Y	;WITH DOS FILENAME CHAR
+	BNE	DFN-1	;BR NOT MATCH
 	DEY
-	BNE	TDF1
+	BNE	TDF1	;BR IF MORE, ELSE RTN EQ
 	RTS
-DFN	.byte	"DOS     SYS "
+DFN	.byte	"DOS     SYS "	;; [extraneous space at the end?]
 ERRPOT	INC	ERRNO
 ERFNF	INC	ERRNO
 ERDFULL	INC	ERRNO
@@ -1191,470 +1216,6 @@ GREAT	LDA	#$01
 	BNE	RETURN
 ERREOF	LDA	#$88
 	BMI	RETURN
-ENTSTK	.byte	$F7
-CURFCB	.byte	$10
-DHOLES	.byte	$00
-DHOLED	.byte	$00
-DHFNUM	.byte	$00
-CDIRD	.byte	$00
-CDIRS	.byte	$00
-SFNUM	.byte	$00
-SVDBYT	.byte	$9B ; '›'
-TEMP1	.byte	$00
-TEMP2	.byte	$05
-TEMP3	.byte	$02
-TEMP4	.byte	$80
-DRVTBL	.byte	$03
-	.byte	$02
-	.byte	$01
-	.byte	$00
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-SECTBL	.byte	$00
-	.byte	$00
-	.byte	$80
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-FNAME	.byte	"DOS     SYS "
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$04
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-L1157	.byte	$04
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-FCBFNO	.byte	$00
-FCBOTC	.byte	$00
-FCBSPR	.byte	$00
-FCBSLT	.byte	$00
-FCBFLG	.byte	$00
-FCBMLN	.byte	$00
-FCBDLN	.byte	$00
-FCBBUF	.byte	$00
-FCBCSN	.word	$0000
-FCBLSN	.word	$0000
-FCBSSN	.word	$0000
-FCBCNT	.word	$0000
-FCB1	.byte	$00
-	.byte	$08
-	.byte	$00
-	.byte	$00
-	.byte	$80
-	.byte	$00
-	.byte	$00
-	.byte	$03
-	.byte	$16
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$15
-	.byte	$00
-	.byte	$14
-	.byte	$00
-FCB2	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-FCB3	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-FCB4	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-FCB5	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-FCB6	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-FCB7	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-FILDIR	.byte	$40 ; '@'
-DFDCNT	.byte	$00
-	.byte	$00
-DFDSSN	.byte	$02
-	.byte	$00
-DFDPFN	.byte	$44 ; 'D'
-	.byte	$4F ; 'O'
-	.byte	$53 ; 'S'
-	.byte	$20 ; ' '
-	.byte	$20 ; ' '
-	.byte	$20 ; ' '
-	.byte	$20 ; ' '
-	.byte	$20 ; ' '
-	.byte	$53 ; 'S'
-	.byte	$59 ; 'Y'
-	.byte	$53 ; 'S'
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$01
-	.byte	$C5
-	.byte	$02
-	.byte	$AC
-	.byte	$02
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$7F
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-	.byte	$9F
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-	.byte	$00
-	.byte	$7F
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-	.byte	$FF
-	.byte	$00
-	.byte	$00
-	.byte	$FD
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
-	.byte	$00
 ; https://archive.org/details/ataridiskutilities/page/n1/mode/2up
 ; [ entries in brackets are comments added in transcribing from the scan ]
 ; [lots of transcribing errors are likely; the original scan is low resolution]
@@ -1682,9 +1243,9 @@ SYSRES	=	1	;***SYSTEM RAM RESIDENT VERSION ***
 ;XITVBV	=	$E462
 ;MEMTOP	=	$2E5
 ;IRGEN	=	$D20E
-;BRKKEY	=	$11
-;POKMSK	=	$10
-;DOSVEC	=	$A
+BRKKEY	=	$11
+POKMSK	=	$10
+DOSVEC	=	$A
 WARMST	=	8
 CARTST	=	$BFFA
 ;MEMLO	=	$2E7
@@ -1719,8 +1280,8 @@ DEVSRC	=	$E69E
 ;
 ;	ZERO PAGE VARIABLES
 ;
-	*=$18
-;JMPTBL	*=*+2
+;	*=$18
+JMPTBL_	= $18	; JMPTBL for DOS and DUP are separate
 ;RAMLO	*=*+2
 ;
 ;
@@ -1738,7 +1299,8 @@ FMINIT	=	FMS+$88
 
 
 	;.IF	SYSRES
-	*=DOS
+	;*=DOS
+DOS = *
 	LDA	#DOSOSL
 	STA	DOSVEC
 	LDA	#DOSOSH
@@ -1808,50 +1370,6 @@ ICBLL	=	IOCB+8
 ICBLH	=	IOCB+9
 ;ICAX1	=	IOCB+10
 ICAX2	=	IOCB+11
-PAR	*=*+40	;PARAMETER AREA [1329]
-PARH	=	PAR/256
-PARL	=	-256*PARH+PAR
-LINE	*=*+80	;TYPEIN LINE BUFFER [1351]
-LBUFH	=	LINE/256
-LBUFL	=	-256*LBUFH+LINE
-DBUF	*=*+$100	;DATA BUFFER FOR COPY
-DB1	=	DBUF+$80
-DB3	=	DBUF-3
-	;HILO	DBUF
-DBUFH	=	DBUF/256
-DBUFL	=	-256*DBUFH+DBUF
-	;HILO	DB1
-DB1H	=	DB1/256
-DB1L	=	-256*DB1H+DB1
-	;HILO	DB3
-DB3H	=	DB3/256
-DB3L	=	-256*DB3H+DB3
-DBLL	=	0
-DBLH	=	1	;DATA BUFFER LENGTH=$100
-MENUSZ	*=*+1
-PER_	*=*+1
-UNNO	*=*+1
-RCNT	*=*+1
-SSTAT	*=*+1
-SWDP	*=*+5
-CSRC	*=*+1
-CDES	*=*+1
-SAVX	*=*+1
-PTR	*=*+1
-IPTR	*=*+1
-CTR	*=*+1
-OPT	*=*+1
-T1	*=*+2
-STVEC	*=*+2	;A TEMP OF SOME KIND
-MNA	*=*+2	;MENU ADDRESS
-MNL	*=*+2	;MENU LENGTH
-RDM	*=*+1	;FF TO REDISPLAY MENU
-DTH	=*
-	;HILO	DTH
-DTHH	=	DTH/256
-DTHL	=	-256*DTHH+DTH
-LDST	*=*+2
-LDND	*=*+2
 ;
 ;
 
@@ -1939,9 +1457,9 @@ DSKUTL
 DUI	LDA	#DUNUM
 	STA	MENUSZ	;SET MENU SIZE
 	LDA	#DUJPTL
-	STA	JMPTBL
+	STA	JMPTBL_
 	LDA	#DUJPTH
-	STA	JMPTBL+1	;SET UP JUMP TABLE ADDRESS
+	STA	JMPTBL_+1	;SET UP JUMP TABLE ADDRESS
 	LDA	#DMENUL
 	STA	MNA	;SET UP FOR MENU COPY
 	LDA	#DMENUH
@@ -1988,10 +1506,10 @@ MENUSL	LDX	#$FF	;RESET STACK AT THIS POINT
 	BPL	RANGE		;IF YES, GO READ AGAIN
 	ASL
 	TAY			;SET INDEX TO (MENU # - 1) * 2
-	LDA	(JMPTBL),Y
+	LDA	(JMPTBL_),Y
 	INY
 	STA	RAMLO	;GET STRING POINTER
-	LDA	(JMPTBL),Y
+	LDA	(JMPTBL_),Y
 
 	STA	RAMLO+1
 	LDY	#1	;LOAD STRING POINTER INTO REGISTERS
@@ -2404,10 +1922,10 @@ FMX	JMP	MENUSL	;EXIT
 WHD	.BYTE	"WHICH DRIVE TO FORMAT?",CR
 
 VFM	.BYTE	"TYPE ",$22,"Y",$22," TO FORMAT DISK "
-DDSK	*=*+1	;[save a byte for the drive number, '2' in my binary]
+DDSK	.BYTE	0	;[save a byte for the drive number, '2' in my binary]
 	.BYTE	CR
 FDP	.BYTE	"D"
-CDSK	*=*+1	;[save a byte for the drive number, '2' in my binary]
+CDSK	.BYTE	0	;[save a byte for the drive number, '2' in my binary]
 	.BYTE	":",CR
 	;HILO	WHD
 WHDH	=	WHD/256
@@ -3627,15 +3145,16 @@ DRH	=*
 DRHH	=	DRH/256
 DRHL	=	-256*DRHH+DRH
 ;
-;	HANDLER VECOTRS (ONLY OPEN IS USED)
+;	HANDLER VECTORS (ONLY OPEN IS USED)
 ;
 	.WORD	EOPEN-1
 LDNT	.BYTE	0,0,0,0,0
 
-	*=*+5		;;UNUSED [zero fill in disassembly]
-	RTS		;INIT ROUTINE
+	.BYTE	0,0,0,0,0	;UNUSED [supposedly, but just in case]
+	RTS		;INIT ROUTINE [why have this here?]
 ;
-PDST	*=*+80		;;TABLE OF PHYSICAL DEV:FILESPECS
+;PDST	*=*+80		;;TABLE OF PHYSICAL DEV:FILESPECS
+PDST	.WORD 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 	;HILO	PDST
 PDSTH	=	PDST/256
 PDSTL	=	-256*PDSTH+PDST
@@ -3669,3 +3188,528 @@ FLD	TXA		;CREATE POINTER TO PHYSICAL DEVSPEC
 	RTS		;THATS ALL
 	;.END
 ; [disassembly has 146 zeros at the end]
+ENDCODE	= *
+;
+; Buffers for DUP that do not need to be saved with DOS.SYS
+;
+;PAR	*=*+40	;PARAMETER AREA [1329]
+PAR	.WORD 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+PARH	=	PAR/256
+PARL	=	-256*PARH+PAR
+;LINE	*=*+80	;TYPEIN LINE BUFFER [1351]
+LINE	.WORD 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+LBUFH	=	LINE/256
+LBUFL	=	-256*LBUFH+LINE
+;DBUF	*=*+$100	;DATA BUFFER FOR COPY
+DBUF	.WORD	0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+	.WORD	0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+DB1	.WORD	0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+	.WORD	0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+;DB1	=	DBUF+$80
+DB3	=	DBUF-3
+	;HILO	DBUF
+DBUFH	=	DBUF/256
+DBUFL	=	-256*DBUFH+DBUF
+	;HILO	DB1
+DB1H	=	DB1/256
+DB1L	=	-256*DB1H+DB1
+	;HILO	DB3
+DB3H	=	DB3/256
+DB3L	=	-256*DB3H+DB3
+DBLL	=	0
+DBLH	=	1	;DATA BUFFER LENGTH=$100
+MENUSZ	.BYTE 0
+PER_	.BYTE 0
+UNNO	.BYTE 0
+RCNT	.BYTE 0
+SSTAT	.BYTE 0
+SWDP	.BYTE 0,0,0,0,0
+CSRC	.BYTE 0
+CDES	.BYTE 0
+SAVX	.BYTE 0
+PTR	.BYTE 0
+IPTR	.BYTE 0
+CTR	.BYTE 0
+OPT	.BYTE 0
+T1	.WORD 0
+STVEC	.WORD 0	;A TEMP OF SOME KIND
+MNA	.WORD 0	;MENU ADDRESS
+MNL	.WORD 0	;MENU LENGTH
+RDM	.BYTE 0	;FF TO REDISPLAY MENU
+DTH	=*
+	;HILO	DTH
+DTHH	=	DTH/256
+DTHL	=	-256*DTHH+DTH
+LDST	.WORD 0
+LDND	.WORD 0
+; End of DUP buffers
+
+;
+; Buffers for DOS that do not need to be saved with DOS.SYS
+;
+ENTSTK	.byte	$F7
+CURFCB	.byte	$10
+DHOLES	.byte	$00
+DHOLED	.byte	$00
+DHFNUM	.byte	$00
+CDIRD	.byte	$00
+CDIRS	.byte	$00
+SFNUM	.byte	$00
+SVDBYT	.byte	$9B ; '›'
+TEMP1	.byte	$00
+TEMP2	.byte	$05
+TEMP3	.byte	$02
+TEMP4	.byte	$80
+DRVTBL	.byte	$03
+	.byte	$02
+	.byte	$01
+	.byte	$00
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+SECTBL	.byte	$00
+	.byte	$00
+	.byte	$80
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+FNAME	.byte	"DOS     SYS "
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$04
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+L1157	.byte	$04
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+FCBFNO	.byte	$00
+FCBOTC	.byte	$00
+FCBSPR	.byte	$00
+FCBSLT	.byte	$00
+FCBFLG	.byte	$00
+FCBMLN	.byte	$00
+FCBDLN	.byte	$00
+FCBBUF	.byte	$00
+FCBCSN	.word	$0000
+FCBLSN	.word	$0000
+FCBSSN	.word	$0000
+FCBCNT	.word	$0000
+FCB1	.byte	$00
+	.byte	$08
+	.byte	$00
+	.byte	$00
+	.byte	$80
+	.byte	$00
+	.byte	$00
+	.byte	$03
+	.byte	$16
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$15
+	.byte	$00
+	.byte	$14
+	.byte	$00
+FCB2	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+FCB3	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+FCB4	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+FCB5	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+FCB6	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+FCB7	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+;
+; DISK FILE DIRECTORY
+; THE FILE DIRECTORY OCCUPIES 8
+;CONSECUTIVE SECTORS STARTING AT THE
+; CENTRAL SECTOR+1.  EACH FILE DIRECTORY
+; SECTOR CONTAINS 8 ENTRIES.  THERE
+; IS 1 ENTRY FOR EACH NAMED FILE.  THE
+; THERE ARE A TOTAL OF 64 NAMED FILES
+; PER VOLUME
+;
+; THE FILE NUMBER IS USED THROUGH THE 
+; THE SYSTEM IS THE RELATIVE (TO ONE)
+; FILE DIRECTORY ENTRY NUMBER.
+;
+; THE EQUATES BELOW ARE FOR A SINCE NAMED
+; FILE ENTRY
+;
+DFDFL1	= 0	;FLAG1
+DFDCNT	= 1	;SECTOR COUNTER (LOW)
+DFDSSN	= 3	;START SECTOR NO (2)
+DFDPFN	= 5	;PRIMARY FILE NAME (8)
+DFDXFN	= 13	;EXTENDED FILE NAME (4)
+DFDLEN	= 16	;ENTRY LENGTH
+;
+; DFDFL1 VALUE EQUATES
+;
+DFDEUU	= 0	;ENTRY UNUSED
+DFDEDE	= $80	;ENTRY DELETED
+DFDINU	= $40	;ENTRY IN USE
+DFDOUT	= $01	;FILE OPEN FOR OUTPUT
+DFDLOC	= $20	;ENTRY LOCKED
+;
+FILDIR	.byte	$40 ; '@'
+	.byte	$00
+	.byte	$00
+	.byte	$02
+	.byte	$00
+	.byte	$44 ; 'D'
+	.byte	$4F ; 'O'
+	.byte	$53 ; 'S'
+	.byte	$20 ; ' '
+	.byte	$20 ; ' '
+	.byte	$20 ; ' '
+	.byte	$20 ; ' '
+	.byte	$20 ; ' '
+	.byte	$53 ; 'S'
+	.byte	$59 ; 'Y'
+	.byte	$53 ; 'S'
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$01
+	.byte	$C5
+	.byte	$02
+	.byte	$AC
+	.byte	$02
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$7F
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+	.byte	$9F
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+	.byte	$00
+	.byte	$7F
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+	.byte	$FF
+	.byte	$00
+	.byte	$00
+	.byte	$FD
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+	.byte	$00
+; End of DOS buffers
+ENDPRG = * ;$2680

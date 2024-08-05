@@ -24,7 +24,7 @@ dos1dup-clean.asm: dos1dup.asm
 	cat dos1dup.asm | sed -e 's/\t...*\t.*\t/&;/' -e 's/\t=*\t[^.].*\t/&;/' -e 's/\t[*]=.*\t/&;/' -e 's/HILO/;&/' -e 's/[.]IF/;&/' -e 's/[.]END/;&/' -e 's/[.]TITLE/;&/' -e 's/^&/;&/' -e '104,107s/^/;/' -e "s/#'\(.\)/#"'"\1"/' -e "s/'0/"'"0"/' -e 's/ASL\tA/ASL/' -e 's/PER\t/PER_\t/' -e 's/PER$$/&_/' > dos1dup-clean.asm
 
 dos1combined.asm: dos1dos-clean.asm dos1dup-clean.asm
-	cat dos1dos-clean.asm dos1dup-clean.asm > dos1combined.asm
+	cat dos1dos-clean.asm <(sed -e s/JMPTBL/JMPTBL_/ dos1dup-clean.asm) > dos1combined.asm
 	sed -i $$(xa -E -XMASM -o /dev/null dos1combined.asm |& grep 'Label already defined error' | sed -e 's/.*:line //' -e 's/:.*//' -e 's@.*@-e &s/^/;/@') dos1combined.asm
 
 dos1.bin: dos1combined.asm
