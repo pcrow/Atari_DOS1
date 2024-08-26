@@ -1767,7 +1767,7 @@ DEVSRC	=	$E69E
 ;		FILENAME =DK1:DUPV.SRC
 ;***********************************************************************
 ;
-;	DISK UTILITY ROUTINE FOR COLLEEN D.B.
+;	DISK UTILITY ROUTINE FOR COLLEEN O.S.
 ;
 ;HILO	.MACRO	&1
 ;&1H	=	&1/256
